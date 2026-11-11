@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
   readDataIni: () => ipcRenderer.invoke("data:readIni"),
   writeDataIni: (content: string) => ipcRenderer.invoke("data:writeIni", content),
+  printCalculation: () => ipcRenderer.invoke("calculation:print"),
 
   // Dialog
   showOpenDialog: (opts: Electron.OpenDialogOptions) => ipcRenderer.invoke("dialog:open", opts),

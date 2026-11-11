@@ -2,7 +2,7 @@ import { emptyData, parseMonth, type AppData, type IndexRow, type Payment } from
 
 const esc = (s: string) => String(s ?? "").replace(/[\r\n]/g, " ").trim();
 export function toIni(d: AppData): string {
-  const lines = ["; Iran Delay Damages - local data (IRR / Jalali calendar)", "[meta]", "version=1", "currency=IRR", "calendar=jalali", "", "[indices]"];
+  const lines = ["; Iran Delay Damages - local data (IRR / Jalali calendar)", "[meta]", "version=1", "currency=IRR", "calendar=jalali", ...(d.defaultsRevision ? [`defaults_revision=${esc(d.defaultsRevision)}`] : []), "; Bundled reference: CBI letter 02/10899 (1402/01/22), base 1395=100, coverage 1390/01..1401/12", "; User values may differ from the reference; do not mix base years.", "", "[indices]"];
   for (const row of [...d.indices].sort((a,b) => a.month.localeCompare(b.month))) lines.push(`${esc(row.month)}=${esc(row.value)}`);
   lines.push("", "[standard]", `principal=${esc(d.standard.principal)}`, `start=${esc(d.standard.start)}`, `end=${esc(d.standard.end)}`,
     "", "[partial]", `principal=${esc(d.partial.principal)}`, `start=${esc(d.partial.start)}`, `end=${esc(d.partial.end)}`);
@@ -41,7 +41,7 @@ export function fromIni(text: string): AppData {
   const installment = sections.installment ?? {};
   const payments: Payment[] = Object.keys(sections).filter(k => /^payment\.\d+$/.test(k)).sort((a,b) => Number(a.split(".")[1])-Number(b.split(".")[1]))
     .map((key, i) => ({ id: `import-${i}-${Date.now()}`, date: sections[key].date ?? "", amount: sections[key].amount ?? "" }));
-  return { indices: rows, standard: { ...emptyData.standard, ...standard },
+  return { defaultsRevision: sections.meta?.defaults_revision, indices: rows, standard: { ...emptyData.standard, ...standard },
     partial: { ...emptyData.partial, ...partial, payments },
     installment: { ...emptyData.installment, ...installment, mode: installment.mode === "amount" ? "amount" : "count" } };
 }

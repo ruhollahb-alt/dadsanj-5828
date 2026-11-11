@@ -1,20 +1,20 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   $schema: "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  appId: "YourAppID",
+  appId: "ir.dadsanj.calculator",
   asar: true,
-  productName: "YourAppName",
+  productName: "DadSanj",
   directories: {
     output: "release/${version}",
   },
-  files: ["dist", "dist-electron"],
+  files: ["dist-electron", "web-dist", "package.json"],
   // PLACEHOLDER — packaged-build deep links (and desktop managed sign-in) DO NOT WORK until this
   // scheme is replaced with the app's real `runable-<applicationId>` (the value main.ts derives at
   // runtime from APPLICATION_ID). Dev builds register the protocol at runtime and ignore this.
   protocols: [
     {
-      name: "App deep links",
-      schemes: ["runable-app"],
+      name: "DadSanj deep links",
+      schemes: ["runable-irandel-n1drc4o"],
     },
   ],
   mac: {
@@ -35,6 +35,10 @@
     perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: "دادسنج",
+    uninstallDisplayName: "DadSanj — دادسنج",
   },
   linux: {
     target: ["AppImage"],

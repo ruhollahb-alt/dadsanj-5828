@@ -1,0 +1,40 @@
+.print-report { display: none; }
+.form-footer { flex-wrap: wrap; }
+.print-calculation { padding: 12px 16px; font-size: 11px; }
+.print-calculation:disabled { opacity: .4; cursor: not-allowed; }
+
+@page { size: A4 portrait; margin: 14mm 12mm; }
+@media print {
+  html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #fff !important; color: #111 !important; margin: 0 !important; padding: 0 !important; }
+  body > :not(#root), #root > :not(.app-shell), .app-shell > :not(.print-report) { display: none !important; }
+  .app-shell { display: block !important; min-height: 0 !important; width: auto !important; background: #fff !important; }
+  .print-report { display: block !important; width: 100%; color: #111; background: #fff; font-family: Vazirmatn, sans-serif; font-size: 9pt; line-height: 1.6; }
+  .print-report *, .print-report *::before, .print-report *::after { box-sizing: border-box; animation: none !important; transition: none !important; box-shadow: none !important; text-shadow: none !important; }
+  .print-report-header { border-bottom: 2px solid #222; padding-bottom: 4mm; margin-bottom: 5mm; break-inside: avoid; }
+  .print-report-header > div { display: flex; justify-content: space-between; align-items: center; gap: 8mm; }
+  .print-report-header strong { font-size: 16pt; }
+  .print-report-header span { font-size: 8pt; color: #444; }
+  .print-report h1 { font-size: 16pt; margin: 3mm 0 0; color: #111; }
+  .print-report h2 { margin: 0 0 2mm; font-size: 11pt; color: #111; break-after: avoid; }
+  .print-block { margin-bottom: 4mm; }
+  .print-report p { margin: 1.5mm 0; font-size: 8pt; color: #222; orphans: 3; widows: 3; }
+  .print-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm 8mm; margin: 0; }
+  .print-inputs > div { display: flex; justify-content: space-between; gap: 4mm; border-bottom: 1px solid #ddd; padding: 1mm 0; }
+  .print-inputs dt { color: #444; }
+  .print-inputs dd { margin: 0; font-weight: 600; }
+  .print-inputs, .print-summary { break-inside: avoid; }
+  .print-report table { width: 100%; border-collapse: collapse; font-size: 8pt; table-layout: auto; }
+  .print-report thead { display: table-header-group; }
+  .print-report tr { break-inside: avoid; }
+  .print-report th, .print-report td { padding: 1.5mm 1.5mm; border: 1px solid #aaa; text-align: right; vertical-align: top; white-space: normal; overflow-wrap: normal; }
+  .print-report th { font-weight: 700; }
+  .print-report [dir="ltr"] { text-align: left; unicode-bidi: isolate; }
+  .print-report .print-number, .print-report .print-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .print-report .print-total { font-weight: 800; border-top: 2px solid #333; }
+  .print-report .print-detail-table { font-size: 7.5pt; }
+  .print-report .print-detail-table th, .print-report .print-detail-table td { padding: 1.3mm 1mm; }
+  .print-report .print-source { font-size: 7pt; overflow-wrap: anywhere; }
+  .print-report .print-warning { border: 1px solid #333; padding: 2mm; font-weight: 600; }
+  .print-report-footer { border-top: 1px solid #555; padding-top: 2mm; margin-top: 5mm; break-inside: avoid; }
+  .print-report-footer span { font-size: 7pt; color: #555; }
+}

@@ -18,6 +18,14 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null) {
     await fs.mkdir(path.dirname(dataPath()), { recursive: true });
     await fs.writeFile(dataPath(), content, "utf-8");
   });
+  ipcMain.handle("calculation:print", async () => {
+    const win = getWindow();
+    if (!win || win.isDestroyed()) throw new Error("پنجرهٔ برنامه در دسترس نیست.");
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      win.webContents.print({ silent: false, printBackground: false, pageSize: "A4" },
+        (success, failureReason) => resolve({ success, error: success ? undefined : failureReason }));
+    });
+  });
   // Dialog
   ipcMain.handle("dialog:open", async (_, opts) => {
     const result = await dialog.showOpenDialog(opts);

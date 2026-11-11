@@ -21,7 +21,7 @@ let win: BrowserWindow | null = null;
 const getWindow = () => win;
 
 const deepLinks = createManagedDeepLinks({
-  applicationId: process.env.APPLICATION_ID,
+  applicationId: process.env.APPLICATION_ID ?? "irandel-n1drc4o",
   getWindow,
 });
 
@@ -29,6 +29,11 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 780,
+    minHeight: 600,
+    title: "دادسنج — محاسبه خسارت تأخیر تأدیه",
+    backgroundColor: "#090813",
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,

@@ -7,6 +7,7 @@ dist
 dist-electron
 release
 web-build
+web-dist
 *.tgz
 
 # code coverage
@@ -72,3 +73,5 @@ scripts/
 !packages/mobile/scripts/
 packages/mobile/scripts/*
 !packages/mobile/scripts/generate-ios-certs.py
+!packages/desktop/scripts/
+!packages/desktop/scripts/copy-web.ts

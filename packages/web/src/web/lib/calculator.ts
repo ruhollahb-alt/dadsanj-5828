@@ -3,6 +3,7 @@ import { isValidJalaaliDate } from "jalaali-js";
 export type Payment = { id: string; date: string; amount: string };
 export type IndexRow = { month: string; value: string };
 export type AppData = {
+  defaultsRevision?: string;
   indices: IndexRow[];
   standard: { principal: string; start: string; end: string };
   partial: { principal: string; start: string; end: string; payments: Payment[] };

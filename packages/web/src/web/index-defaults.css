@@ -1,0 +1,5 @@
+.index-panel .table-scroll { max-height: 560px; overscroll-behavior: contain; }
+.index-panel .data-table thead { position: sticky; top: 0; z-index: 1; }
+.info-panel p + p { margin-top: 12px; }
+.info-panel a { color: #d1b5f5; text-decoration: underline; text-underline-offset: 4px; }
+.info-panel .outline-button { margin-top: 16px; white-space: normal; }

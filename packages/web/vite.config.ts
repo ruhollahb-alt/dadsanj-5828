@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
   Object.assign(process.env, env);
 
   return {
+    base: mode === "desktop" ? "./" : "/",
     // All env files live at the repo root — keep Vite's own env loading there too,
     // so packages/web/.env* files can never shadow the root .env.
     envDir: root,

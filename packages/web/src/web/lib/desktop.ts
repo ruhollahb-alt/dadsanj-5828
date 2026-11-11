@@ -3,6 +3,7 @@ export interface ElectronAPI {
   platform: string;
   readDataIni: () => Promise<string | null>;
   writeDataIni: (content: string) => Promise<void>;
+  printCalculation: () => Promise<{ success: boolean; error?: string }>;
 
   // Dialog
   showOpenDialog: (opts: {

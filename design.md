@@ -24,3 +24,9 @@ Desktop-first Iranian legal finance calculator, Persian RTL. The supplied refere
 - Index data: import/edit/export monthly user-supplied index rates as INI, coverage and missing-data guidance.
 
 Desktop automatically persists a single INI file in Electron userData; import/export uses native file dialogs. Browser preview uses local storage and downloadable INI as a fallback. No official index is invented. Inputs and calculations are local-only, with no API or database tables. Calculation outputs are aids, not legal determinations.
+
+## Verified index defaults
+Preserve the existing visual identity. Show a compact source panel with links to the reproduced CBI letter and table, base 1395=100, verified coverage 1390/01–1401/12, retrieval date and a clear newer-months limitation. Table labels mean numerical agreement with reference, not certification of user-entered data. Missing-only initialization preserves custom values; an explicit non-destructive add-missing action is available. No API, automatic web synchronization or extrapolation.
+
+## Calculation printing
+Add an outlined printer action next to calculation in all three calculators; disabled until a valid current result exists. Keep the dark workspace unchanged. Print a separate white A4 Persian RTL report with plain-text inputs, Jalali dates, rial totals, formula, used monthly indices and reference-match status, itemized stages or complete installment schedule, and legal/rounding notes. Hide navigation, editable forms, actions, overlays and the platform badge only in print media. Repeat table headers on multipage reports; never clip long schedules. Browser uses its print dialog; Electron uses the native non-silent print dialog through IPC. No automatic printing or changes to indices/calculation rules.
