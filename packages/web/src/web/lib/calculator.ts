@@ -2,8 +2,10 @@ import { isValidJalaaliDate } from "jalaali-js";
 import {
   calculateDamages,
   calculateInsolvencyPlan,
-  removeIndexOverride,
-  setIndexOverride,
+  getIndex as publishedIndex,
+  hasIndex as publishedHasIndex,
+  installmentLateDamages,
+  type IndexSource,
   type JalaliMonth,
 } from "./cpi";
 
@@ -18,7 +20,8 @@ export type AppData = {
 };
 export type Stage = { label: string; date: string; index: number; before: number; payment: number; after: number };
 export type PlanRow = { number: number; principal: number; damages: number; total: number };
-export type Result = { principal: number; damages: number; total: number; startIndex: number; endIndex: number; stages: Stage[]; plan?: PlanRow[]; paid?: number };
+export type YearlyRow = { from: string; to: string; indexFrom: number; indexTo: number; ratio: number; total: number; damages: number };
+export type Result = { principal: number; damages: number; total: number; startIndex: number; endIndex: number; stages: Stage[]; plan?: PlanRow[]; paid?: number; segments?: YearlyRow[] };
 
 export const emptyData: AppData = {
   indices: [],
@@ -67,39 +70,39 @@ function monthOf(date: string): JalaliMonth {
   return { year, month };
 }
 
+/** YYYY/MM label for an engine month. */
+export function monthKey({ year, month }: JalaliMonth): string {
+  return `${year}/${String(month).padStart(2, "0")}`;
+}
+
 /**
- * The ported engine keeps its own month → level store. Feed it the rows the
- * user sees (INI file / index manager) so both sides always agree.
+ * Builds the calculation's index view from the rows the user sees (defaults
+ * plus manual corrections). Published CBI levels fill any month not listed,
+ * so calculations no longer mutate shared module state.
  */
-const applied = new Map<string, number>();
-function syncIndices(rows: IndexRow[]): void {
-  const next = new Map<string, number>();
+function indexSource(rows: IndexRow[]): IndexSource {
+  const levels = new Map<string, number>();
   for (const row of rows) {
     let key: string;
     try { key = parseMonth(row.month); } catch { continue; }
     const value = Number(digits(row.value));
     if (!Number.isFinite(value) || value <= 0) continue;
-    next.set(key, value);
-    if (applied.get(key) !== value) {
-      const [year, month] = key.split("/").map(Number);
-      setIndexOverride({ year, month }, value);
-    }
+    levels.set(key, value);
   }
-  for (const key of applied.keys()) {
-    if (!next.has(key)) {
-      const [year, month] = key.split("/").map(Number);
-      removeIndexOverride({ year, month });
-    }
-  }
-  applied.clear();
-  for (const [key, value] of next) applied.set(key, value);
+  return {
+    hasIndex: (month) => levels.has(monthKey(month)) || publishedHasIndex(month),
+    getIndex: (month) => {
+      const value = levels.get(monthKey(month));
+      return value === undefined ? publishedIndex(month) : { level: value, inflation: null };
+    },
+  };
 }
 
 export function calculateStandard(d: AppData): Result {
   const principal = amount(d.standard.principal, "مبلغ اصل دین");
   const { start, end } = dates(d.standard.start, d.standard.end);
-  syncIndices(d.indices);
-  const r = calculateDamages({ debt: principal, from: monthOf(start), to: monthOf(end) });
+  const indices = indexSource(d.indices);
+  const r = calculateDamages({ debt: principal, from: monthOf(start), to: monthOf(end), indices });
   const damages = Math.max(0, Math.round(r.damages));
   return {
     principal,
@@ -111,6 +114,15 @@ export function calculateStandard(d: AppData): Result {
       { label: "شروع محاسبه", date: start, index: r.indexFrom, before: principal, payment: 0, after: principal },
       { label: "تسویه در تاریخ پایان", date: end, index: r.indexTo, before: Math.round(r.total), payment: 0, after: Math.round(r.total) },
     ],
+    segments: r.segments.map((s) => ({
+      from: monthKey(s.from),
+      to: monthKey(s.to),
+      indexFrom: s.indexFrom,
+      indexTo: s.indexTo,
+      ratio: s.ratio,
+      total: s.updatedTotal,
+      damages: s.damages,
+    })),
   };
 }
 
@@ -130,12 +142,13 @@ export function calculatePartial(d: AppData): Result {
     return { id: p.id, date, sum, month };
   }).sort((a, b) => a.date.localeCompare(b.date));
 
-  syncIndices(d.indices);
+  const indices = indexSource(d.indices);
   const r = calculateDamages({
     debt: principal,
     from: startMonth,
     to: endMonth,
     payments: payments.map(p => ({ id: p.id, month: p.month, amount: p.sum })),
+    indices,
   });
 
   const dateByOrdinal = new Map(payments.map(p => [p.month.year * 12 + p.month.month, p.date]));
@@ -162,6 +175,15 @@ export function calculatePartial(d: AppData): Result {
     endIndex: r.indexTo,
     stages,
     paid: r.totalPaid,
+    segments: r.segments.map((s) => ({
+      from: monthKey(s.from),
+      to: monthKey(s.to),
+      indexFrom: s.indexFrom,
+      indexTo: s.indexTo,
+      ratio: s.ratio,
+      total: s.updatedTotal,
+      damages: s.damages,
+    })),
   };
 }
 
@@ -172,7 +194,7 @@ export function calculateInstallment(d: AppData): Result {
   const initial = amount(v.initial || "0", "پیش‌پرداخت", true);
   if (initial > principal) throw Error("پیش‌پرداخت نمی‌تواند بیش از اصل محکوم‌به باشد.");
 
-  syncIndices(d.indices);
+  const indices = indexSource(d.indices);
   const plan = calculateInsolvencyPlan({
     debt: principal,
     start: monthOf(start),
@@ -182,6 +204,7 @@ export function calculateInstallment(d: AppData): Result {
     mode: v.mode,
     installmentAmount: v.mode === "amount" ? amount(v.value, "مبلغ ثابت هر قسط") : 0,
     installmentCount: v.mode === "count" ? amount(v.value, "تعداد اقساط") : 0,
+    indices,
   });
 
   // Split every installment into its principal/damages share (as the report shows).
@@ -212,4 +235,21 @@ export function calculateInstallment(d: AppData): Result {
     plan: rows,
     paid: plan.cashPayment,
   };
+}
+
+/** Delayed-payment damages for one installment paid after its due month. */
+export function calculateLateInstallment(
+  d: AppData,
+  input: { amount: string; due: string; paid: string },
+): number {
+  const value = amount(input.amount, "مبلغ قسط");
+  const due = monthOf(parseDate(input.due));
+  const paid = monthOf(parseDate(input.paid));
+  const damages = installmentLateDamages({
+    amount: value,
+    due,
+    paid,
+    indices: indexSource(d.indices),
+  });
+  return Math.max(0, Math.round(damages));
 }

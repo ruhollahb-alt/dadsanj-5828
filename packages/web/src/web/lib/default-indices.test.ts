@@ -4,11 +4,11 @@ import { addMissingDefaults, defaultIndices, initializeData, matchesReference } 
 import { fromIni, toIni } from "./ini";
 
 describe("documented CBI defaults", () => {
-  test("144 unique positive monthly values, one bounded series", () => {
-    expect(defaultIndices.length).toBe(144);
-    expect(new Set(defaultIndices.map(r => r.month)).size).toBe(144);
-    expect(defaultIndices[0]).toEqual({ month: "1390/01", value: "37.5" });
-    expect(defaultIndices.at(-1)).toEqual({ month: "1401/12", value: "794.3" });
+  test("367 unique positive monthly values, one bounded series", () => {
+    expect(defaultIndices.length).toBe(367);
+    expect(new Set(defaultIndices.map(r => r.month)).size).toBe(367);
+    expect(defaultIndices[0]).toEqual({ month: "1375/01", value: "4.344" });
+    expect(defaultIndices.at(-1)).toEqual({ month: "1405/07", value: "3611.1" });
     expect(defaultIndices.every(r => Number(r.value) > 0)).toBe(true);
     expect(defaultIndices.find(r => r.month === "1395/07")?.value).toBe("100");
   });
@@ -16,7 +16,7 @@ describe("documented CBI defaults", () => {
     const fresh = initializeData();
     expect(fromIni(toIni(fresh))).toEqual(fresh);
     fresh.indices[0].value = "99";
-    expect(initializeData().indices[0].value).toBe("37.5");
+    expect(initializeData().indices[0].value).toBe("4.344");
   });
   test("migration preserves custom values, forms and payments", () => {
     const old = structuredClone(emptyData);
@@ -24,19 +24,19 @@ describe("documented CBI defaults", () => {
     old.standard.principal = "12345";
     old.partial.payments = [{ id: "keep", date: "1400/02/01", amount: "200" }];
     const merged = initializeData(old);
-    expect(merged.indices.length).toBe(145);
+    expect(merged.indices.length).toBe(367);
     expect(merged.indices[0].value).toBe("400");
     expect(merged.standard).toEqual(old.standard);
     expect(merged.partial).toEqual(old.partial);
-    expect(addMissingDefaults(merged).indices.length).toBe(145);
+    expect(addMissingDefaults(merged).indices.length).toBe(367);
     expect(matchesReference(merged.indices[0])).toBe(false);
   });
   test("deletions persist across restart, restore only fills missing months", () => {
     const fresh = initializeData();
     fresh.indices = fresh.indices.slice(1);
     const loaded = initializeData(fromIni(toIni(fresh)));
-    expect(loaded.indices.length).toBe(143);
-    expect(addMissingDefaults(loaded).indices.length).toBe(144);
+    expect(loaded.indices.length).toBe(366);
+    expect(addMissingDefaults(loaded).indices.length).toBe(367);
   });
   test("three calculators use defaults and reject unsupported months", () => {
     const data = initializeData();
@@ -48,7 +48,7 @@ describe("documented CBI defaults", () => {
     expect(calculatePartial(data).total).toBe(standard.total);
     data.installment = { principal: "1000000000", start: "1400/01/01", ruling: "1401/12/01", initial: "200000000", mode: "count", value: "3" };
     expect(calculateInstallment(data).total).toBe(standard.total);
-    data.standard.end = "1402/01/01";
-    expect(() => calculateStandard(data)).toThrow("شاخص ماه 1402/01 موجود نیست");
+    data.standard.end = "1405/08/01";
+    expect(() => calculateStandard(data)).toThrow("شاخص برای یکی از ماه‌های انتخابی منتشر نشده است");
   });
 });

@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from "vite";
+import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
 import tailwind from "@tailwindcss/vite";
 import path from "path";
@@ -13,8 +14,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "");
   Object.assign(process.env, env);
 
+  const appVersion = JSON.parse(readFileSync(path.resolve(__dirname, "../desktop/package.json"), "utf8")).version as string;
+
   return {
     base: mode === "desktop" ? "./" : "/",
+    define: { __APP_VERSION__: JSON.stringify(appVersion) },
     // All env files live at the repo root — keep Vite's own env loading there too,
     // so packages/web/.env* files can never shadow the root .env.
     envDir: root,

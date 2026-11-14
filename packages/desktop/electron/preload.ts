@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   writeDataIni: (content: string) => ipcRenderer.invoke("data:writeIni", content),
   printCalculation: () => ipcRenderer.invoke("calculation:print"),
 
+  // Multi-case workspace (atomic write with rotating backups in userData)
+  readWorkspace: () => ipcRenderer.invoke("workspace:read"),
+  writeWorkspace: (content: string) => ipcRenderer.invoke("workspace:write", content),
+  restoreWorkspaceBackup: () => ipcRenderer.invoke("workspace:restore"),
+
   // Dialog
   showOpenDialog: (opts: Electron.OpenDialogOptions) => ipcRenderer.invoke("dialog:open", opts),
   showSaveDialog: (opts: Electron.SaveDialogOptions) => ipcRenderer.invoke("dialog:save", opts),
@@ -20,6 +25,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // File system
   readFile: (path: string) => ipcRenderer.invoke("fs:read", path),
   writeFile: (path: string, data: string) => ipcRenderer.invoke("fs:write", path, data),
+  writeFileBase64: (path: string, data: string) => ipcRenderer.invoke("fs:writeBase64", path, data),
 
   // Shell — opens in the user's default browser, http(s) only (enforced in the main process)
   openExternal: managedAuth.openExternal,

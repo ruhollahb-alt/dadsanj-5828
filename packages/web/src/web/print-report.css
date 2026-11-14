@@ -34,6 +34,8 @@
   .print-report .print-detail-table { font-size: 7.5pt; }
   .print-report .print-detail-table th, .print-report .print-detail-table td { padding: 1.3mm 1mm; }
   .print-report .print-source { font-size: 7pt; overflow-wrap: anywhere; }
+  .print-report .print-yearly { break-inside: auto; }
+  .print-report .print-fingerprint { font-size: 7pt; color: #444; overflow-wrap: anywhere; }
   .print-report .print-warning { border: 1px solid #333; padding: 2mm; font-weight: 600; }
   .print-report-footer { border-top: 1px solid #555; padding-top: 2mm; margin-top: 5mm; break-inside: avoid; }
   .print-report-footer span { font-size: 7pt; color: #555; }

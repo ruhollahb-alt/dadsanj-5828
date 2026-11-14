@@ -10,6 +10,8 @@ import path from "node:path";
 
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null) {
   const dataPath = () => path.join(app.getPath("userData"), "damages-data.ini");
+  const workspacePath = () => path.join(app.getPath("userData"), "dadsanj-workspace.json");
+  const backupPath = (n: number) => `${workspacePath()}.bak${n}`;
   ipcMain.handle("data:readIni", async () => {
     try { return await fs.readFile(dataPath(), "utf-8"); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
@@ -26,6 +28,34 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null) {
         (success, failureReason) => resolve({ success, error: success ? undefined : failureReason }));
     });
   });
+  // Multi-case workspace: atomic replace with rotating backups. A failed write
+  // leaves the previous file untouched, and the last three saves remain
+  // restorable from the UI.
+  ipcMain.handle("workspace:read", async () => {
+    try { return await fs.readFile(workspacePath(), "utf-8"); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
+  });
+  ipcMain.handle("workspace:write", async (_, content: string) => {
+    if (typeof content !== "string") throw new Error("محتوای فضای کار نامعتبر است.");
+    await fs.mkdir(path.dirname(workspacePath()), { recursive: true });
+    for (let i = 2; i >= 1; i--) {
+      try { await fs.copyFile(backupPath(i), backupPath(i + 1)); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    }
+    try { await fs.copyFile(workspacePath(), backupPath(1)); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    const temp = `${workspacePath()}.tmp`;
+    await fs.writeFile(temp, content, "utf-8");
+    await fs.rename(temp, workspacePath());
+  });
+  ipcMain.handle("workspace:restore", async () => {
+    for (let i = 1; i <= 3; i++) {
+      try { return await fs.readFile(backupPath(i), "utf-8"); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    }
+    return null;
+  });
+
   // Dialog
   ipcMain.handle("dialog:open", async (_, opts) => {
     const result = await dialog.showOpenDialog(opts);
@@ -44,6 +74,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null) {
 
   ipcMain.handle("fs:write", async (_, filePath: string, data: string) => {
     await fs.writeFile(filePath, data, "utf-8");
+  });
+
+  ipcMain.handle("fs:writeBase64", async (_, filePath: string, data: string) => {
+    if (typeof data !== "string") throw new Error("دادهٔ فایل نامعتبر است.");
+    await fs.writeFile(filePath, Buffer.from(data, "base64"));
   });
 
   // Notifications

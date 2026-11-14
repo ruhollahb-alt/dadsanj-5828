@@ -3,3 +3,54 @@
 .info-panel p + p { margin-top: 12px; }
 .info-panel a { color: #d1b5f5; text-decoration: underline; text-underline-offset: 4px; }
 .info-panel .outline-button { margin-top: 16px; white-space: normal; }
+.inflation-cell { font-family: PlexMono, Vazirmatn; font-size: 10px; color: #a79bc0; white-space: nowrap; }
+
+/* --- Case switcher ------------------------------------------------------- */
+.case-bar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 12px 48px 0; padding: 8px 12px; border: 1px solid #2c2640; border-radius: 9px; background: #0f0c19; font-size: 11px; color: #a79fba; }
+.case-bar-label { display: flex; align-items: center; gap: 6px; color: #8c82a1; white-space: nowrap; }
+.case-name { border: 0; background: transparent; color: #ecdcff; font-weight: 700; display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 12px; }
+.case-name svg { opacity: .5; }
+.case-name:hover svg { opacity: 1; }
+.case-name-input { background: #171223; border: 1px solid #7a58a8; border-radius: 6px; color: #f5efff; padding: 4px 8px; font-size: 12px; min-width: 160px; outline: 0; }
+.case-select { background: #171223; border: 1px solid #3a3352; border-radius: 6px; color: #d8cfeb; font-size: 11px; padding: 4px 8px; max-width: 200px; }
+.case-count { font-size: 10px; color: #716a83; margin-inline-start: auto; white-space: nowrap; }
+.case-actions { display: flex; gap: 4px; }
+.case-actions button { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid #352e4d; border-radius: 6px; background: #181327; color: #c5b5df; padding: 0; }
+.case-actions button:hover:not(:disabled) { border-color: #7b5aa9; color: #fff; }
+.case-actions button:disabled { opacity: .35; cursor: not-allowed; }
+
+/* --- Jalali date picker -------------------------------------------------- */
+.date-wrap { position: relative; padding-left: 0; }
+.date-wrap input { padding-left: 6px; }
+.date-toggle { width: 41px; height: 43px; flex: none; border: 0; border-right: 1px solid #2f2a40; background: transparent; color: #bda4e9; display: grid; place-items: center; padding: 0; }
+.date-toggle:hover { color: #eadcff; }
+.date-popover { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: 272px; background: #161123; border: 1px solid #54406e; border-radius: 10px; box-shadow: 0 20px 55px #000a; padding: 10px; }
+.date-popover-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.date-popover-head strong { font-size: 12px; color: #eadcff; }
+.date-popover-head button { width: 26px; height: 26px; border: 1px solid #3a3152; border-radius: 6px; background: #1c1630; color: #c6b1e7; display: grid; place-items: center; padding: 0; }
+.date-weekdays, .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.date-weekdays span { font-size: 9px; color: #877d9c; padding: 3px 0; }
+.date-grid button, .date-grid > span { height: 29px; display: grid; place-items: center; border-radius: 6px; }
+.date-grid button { border: 0; background: transparent; color: #d9d0ea; font-size: 11px; padding: 0; }
+.date-grid button:hover { background: #2a2140; }
+.date-grid button.selected { background: #7d4fd1; color: #fff; }
+.date-popover-foot { display: flex; justify-content: space-between; margin-top: 7px; border-top: 1px solid #2c2540; padding-top: 7px; }
+.date-popover-foot button { border: 0; background: transparent; color: #b99be8; font-size: 10px; padding: 2px 0; }
+
+/* --- Coverage and extra engine panels ------------------------------------ */
+.coverage-note { display: flex; gap: 8px; align-items: flex-start; margin: 16px 0 0; padding: 10px 12px; border-radius: 7px; font-size: 10px; line-height: 1.9; }
+.coverage-note svg { flex: none; margin-top: 2px; }
+.coverage-note.ok { background: #16261f; border: 1px solid #2e5544; color: #8fd6b6; }
+.coverage-note.warn { background: #2c2119; border: 1px solid #6b4a2c; color: #ffc98b; }
+.late-panel { margin-top: 20px; }
+.late-panel .fields { margin-bottom: 16px; }
+.late-result { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border: 1px solid #4d3a6a; border-radius: 8px; background: #1b1430; font-size: 11px; color: #b9acd2; }
+.late-result strong { color: #e2c9ff; font-size: 13px; }
+.breakdown-subtitle { margin: 22px 0 10px; font-size: 12px; color: #cfc4e4; }
+.audit-foot { color: #9a90ad; font-size: 10px; line-height: 1.9; margin: 12px 0 0; }
+
+@media (max-width: 700px) {
+  .case-bar { margin: 10px 18px 0; }
+  .case-count { display: none; }
+  .date-popover { width: min(272px, calc(100vw - 40px)); }
+}

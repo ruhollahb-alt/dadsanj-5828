@@ -5,6 +5,11 @@ export interface ElectronAPI {
   writeDataIni: (content: string) => Promise<void>;
   printCalculation: () => Promise<{ success: boolean; error?: string }>;
 
+  // Multi-case workspace
+  readWorkspace?: () => Promise<string | null>;
+  writeWorkspace?: (content: string) => Promise<void>;
+  restoreWorkspaceBackup?: () => Promise<string | null>;
+
   // Dialog
   showOpenDialog: (opts: {
     title?: string;
@@ -20,6 +25,7 @@ export interface ElectronAPI {
   // File system
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, data: string) => Promise<void>;
+  writeFileBase64?: (path: string, data: string) => Promise<void>;
 
   // Shell
   openExternal: (url: string) => Promise<void>;

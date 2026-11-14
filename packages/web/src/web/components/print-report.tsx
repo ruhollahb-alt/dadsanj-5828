@@ -1,5 +1,6 @@
 import { digits, indexText, money, parseDate, type AppData, type Result } from "../lib/calculator";
-import { INDEX_SOURCE_URL, matchesReference } from "../lib/default-indices";
+import { DEFAULT_INDICES_REVISION, INDEX_SOURCE_URL, matchesReference } from "../lib/default-indices";
+import { reportFingerprint } from "../lib/fingerprint";
 import "../print-report.css";
 
 export type CalculationTab = "standard" | "partial" | "installment";
@@ -18,6 +19,7 @@ export function PrintReport({ data, result, tab }: { data: AppData; result: Resu
   const end = tab === "installment" ? data.installment.ruling : data[tab].end;
   const usedIndices = [...new Map(result.stages.map(stage => [stage.date.slice(0, 7), { month: stage.date.slice(0, 7), value: String(stage.index) }])).values()];
   const customCount = usedIndices.filter(row => !matchesReference(row)).length;
+  const fingerprint = reportFingerprint(data, result, tab);
   return <article className="print-report" dir="rtl" aria-label="گزارش قابل چاپ">
     <header className="print-report-header"><div><strong>دادسنج</strong><span>گزارش محاسبات · تقویم جلالی · مبالغ به ریال</span></div><h1>{titles[tab]}</h1></header>
     <section className="print-block">
@@ -57,19 +59,26 @@ export function PrintReport({ data, result, tab }: { data: AppData; result: Resu
       </tbody></table>}
       {tab === "partial" && <p>کنترل حسابداری: ماندهٔ پایان + پرداخت‌های میانی − اصل دین = {money(result.damages)} ریال خسارت (در صورت عدم کاهش شاخص).</p>}
     </section>
+    {result.segments && result.segments.length > 0 && <section className="print-block print-yearly">
+      <h2>ریز سالانهٔ خسارت</h2>
+      <table className="print-detail-table"><thead><tr><th>بازه</th><th>شاخص شروع</th><th>شاخص پایان</th><th>نسبت</th><th>مبلغ به‌روزشده</th><th>خسارت دوره</th></tr></thead><tbody>
+        {result.segments.map((segment) => <tr key={`${segment.from}-${segment.to}`}><td className="print-date" dir="ltr">{segment.from} → {segment.to}</td><td dir="ltr">{indexText(segment.indexFrom)}</td><td dir="ltr">{indexText(segment.indexTo)}</td><td dir="ltr">{segment.ratio.toFixed(4)}</td><NumberCell value={segment.total}/><NumberCell value={segment.damages}/></tr>)}
+      </tbody></table>
+    </section>}
     <section className="print-block">
       <h2>شاخص‌های استفاده‌شده و وضعیت مرجع</h2>
       <table><thead><tr><th>ماه جلالی</th><th>عدد شاخص</th><th>وضعیت مقدار</th></tr></thead><tbody>
         {usedIndices.map(row => <tr key={row.month}><td dir="ltr">{row.month}</td><td dir="ltr">{indexText(Number(row.value))}</td><td>{matchesReference(row) ? "مطابق جدول مرجع بستهٔ برنامه" : "دادهٔ کاربر؛ نیازمند بررسی منبع و سال پایه"}</td></tr>)}
       </tbody></table>
-      <p>مرجع بستهٔ برنامه: جدول بانک مرکزی، پایهٔ ۱۳۹۵ = ۱۰۰، پیوست نامهٔ ۰۲/۱۰۸۹۹ مورخ ۱۴۰۲/۰۱/۲۲، بازنشر اختبار؛ پوشش ۱۳۹۰/۰۱ تا ۱۴۰۱/۱۲. نشان «مطابق» صرفاً برابری ماه و عدد با این جدول را نشان می‌دهد.</p>
+      <p>مرجع بستهٔ برنامه: جدول بانک مرکزی، پایهٔ ۱۳۹۵ = ۱۰۰؛ پوشش ۱۳۷۵/۰۱ تا ۱۴۰۵/۰۷. بخش ۱۳۹۰ تا ۱۴۰۱ با پیوست نامهٔ ۰۲/۱۰۸۹۹ مورخ ۱۴۰۲/۰۱/۲۲ تطبیق داده شده است. نشان «مطابق» صرفاً برابری ماه و عدد با این جدول را نشان می‌دهد.</p>
       <p className="print-source" dir="ltr">{INDEX_SOURCE_URL}</p>
       {customCount > 0 && <p className="print-warning">توجه: {money(customCount)} شاخص استفاده‌شده با مرجع بستهٔ برنامه تطبیق ندارد. این گزارش منبع یا سال پایهٔ آن‌ها را تأیید نمی‌کند؛ سری‌های متفاوت را ترکیب نکنید.</p>}
     </section>
     <footer className="print-report-footer">
       <p>مبالغ نمایشی به ریال کامل گرد شده‌اند؛ محاسبات مرحله‌ای با دقت کامل و تخصیص اقساط به ریال کامل انجام شده است.</p>
       <p>گزارش صرفاً محاسباتی است؛ احراز شرایط قانونی، تعیین مبدأ خسارت و تصمیم نهایی با مرجع رسیدگی است.</p>
-      <span>دادسنج · نسخهٔ ۱.۲ · گزارش محاسبات مستقل</span>
+      <p className="print-fingerprint">شناسهٔ گزارش: <span dir="ltr">{fingerprint}</span> · بستهٔ شاخص: <span dir="ltr">{DEFAULT_INDICES_REVISION}</span></p>
+      <span>دادسنج · نسخهٔ {__APP_VERSION__} · گزارش محاسبات مستقل</span>
     </footer>
   </article>;
 }

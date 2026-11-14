@@ -12,7 +12,8 @@
     "dist": "bun run prepare-web && vite build && electron-builder",
     "prepare-web": "bun ../web/node_modules/vite/bin/vite.js build ../web --config ../web/vite.config.ts --mode desktop && bun scripts/copy-web.ts",
     "dist:win": "bun run prepare-web && vite build && electron-builder --win nsis --x64",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "checksum": "bun scripts/checksum.ts"
   },
   "dependencies": {
     "@runablehq/managed-auth": "^0.6.0"

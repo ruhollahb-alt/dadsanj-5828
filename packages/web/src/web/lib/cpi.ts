@@ -26,7 +26,7 @@ export const MONTH_NAMES = [
 ] as const;
 
 /** level = index level (base 100 = 1395), inflation = year-on-year % */
-interface MonthEntry {
+export interface MonthEntry {
   level: number;
   inflation: number | null;
 }
@@ -88,70 +88,14 @@ for (const row of RAW) {
   });
 }
 
-// --- Manual index overrides -------------------------------------------------
-// Users can enter or correct index levels (e.g. months not yet published by
-// the Central Bank). Overrides live in localStorage and take precedence over
-// RAW data; all calculators call getIndex()/hasIndex() at computation time,
-// so a new override immediately flows into every calculation on the page.
-const OVERRIDE_KEY = "debt-calc:indexOverrides";
-
-let indexOverrides: Record<string, number> = (() => {
-  try {
-    const raw = localStorage.getItem(OVERRIDE_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
-})();
-
-let indexRevision = 0;
-const indexListeners = new Set<() => void>;
-
-/** Subscribe to manual-index changes (for useSyncExternalStore). */
-export const subscribeIndexChanges = (listener: () => void): (() => void) => {
-  indexListeners.add(listener);
-  return () => {
-    indexListeners.delete(listener);
-  };
-};
-
-/** Monotonic revision of the index data (published + manual overrides). */
-export const getIndexRevision = (): number => indexRevision;
-
-const persistOverrides = (): void => {
-  indexRevision += 1;
-  try {
-    localStorage.setItem(OVERRIDE_KEY, JSON.stringify(indexOverrides));
-  } catch {
-    // storage unavailable — overrides stay in memory for this session
-  }
-  indexListeners.forEach(( listener) => listener());
-};
-
-/** Set (or correct) the index level of a month manually. */
-export const setIndexOverride = (m: JalaliMonth, value: number): void => {
-  indexOverrides = { ...indexOverrides, [`${m.year}-${m.month}`]: value };
-  persistOverrides();
-};
-
-/** Remove a manual override so the published data applies again. */
-export const removeIndexOverride = (m: JalaliMonth): void => {
-  const key = `${m.year}-${m.month}`;
-  if (!(key in indexOverrides)) return;
-  const next = { ...indexOverrides };
-  delete next[key];
-  indexOverrides = next;
-  persistOverrides();
-};
-
-/** All manual overrides, sorted by month. */
-export const listIndexOverrides = (): { month: JalaliMonth; value: number }[] =>
-  Object.entries(indexOverrides)
-    .map(([key, value]) => {
-      const [year, month] = key.split("-").map(Number);
-      return { month: { year, month }, value };
-    })
-    .sort((a, b) => monthOrdinal(a.month) - monthOrdinal(b.month));
+// --- Index source -----------------------------------------------------------
+// Published levels are the fallback. The user's per-case rows (defaults plus
+// manual corrections) are passed in as an IndexSource, so calculation stays a
+// pure function of the case data and never reads or writes storage itself.
+export interface IndexSource {
+  hasIndex(month: JalaliMonth): boolean;
+  getIndex(month: JalaliMonth): MonthEntry | undefined;
+}
 
 export interface JalaliMonth {
   year: number; // Jalali year, e.g. 1403
@@ -174,14 +118,15 @@ export function monthFromOrdinal(ordinal: number): JalaliMonth {
 }
 
 export function hasIndex({ year, month }: JalaliMonth): boolean {
-  return BY_KEY.has(`${year}-${month}`) || `${year}-${month}` in indexOverrides;
+  return BY_KEY.has(`${year}-${month}`);
 }
 
 export function getIndex({ year, month }: JalaliMonth): MonthEntry | undefined {
-  const override = indexOverrides[`${year}-${month}`];
-  if (override !== undefined) return { level: override, inflation: null };
   return BY_KEY.get(`${year}-${month}`);
 }
+
+/** The bundled CBI series, used when a caller has no case-specific source. */
+export const publishedIndexSource: IndexSource = { hasIndex, getIndex };
 
 /** Most recent month that has a published index level. */
 export function latestMonth(): JalaliMonth {
@@ -251,6 +196,8 @@ export interface CalculationInput {
   to: JalaliMonth;
   /** optional partial payments made between `from` and `to` */
   payments?: PaymentInput[];
+  /** case-specific monthly levels (published series + user corrections) */
+  indices?: IndexSource;
 }
 
 export interface CalculationResult {
@@ -315,9 +262,10 @@ export function calculateDamages({
   from,
   to,
   payments = [],
+  indices = publishedIndexSource,
 }: CalculationInput): CalculationResult {
-  const a = getIndex(from);
-  const b = getIndex(to);
+  const a = indices.getIndex(from);
+  const b = indices.getIndex(to);
   if (!a || !b) throw new Error("شاخص برای یکی از ماه‌های انتخابی منتشر نشده است");
   if (debt <= 0) throw new Error("مبلغ دین باید بزرگ‌تر از صفر باشد");
 
@@ -327,7 +275,7 @@ export function calculateDamages({
 
   // Every intermediate month must have a published index for the chain to be exact.
   for (let o = fromOrd; o <= toOrd; o++) {
-    if (!hasIndex(monthFromOrdinal(o))) {
+    if (!indices.hasIndex(monthFromOrdinal(o))) {
       throw new Error("شاخص برای یکی از ماه‌های میانی بازه منتشر نشده است");
     }
   }
@@ -346,7 +294,7 @@ export function calculateDamages({
     if (ord > toOrd) {
       throw new Error("تاریخ پرداخت نمی‌تواند بعد از تاریخ تأدیه باشد");
     }
-    if (!hasIndex(p.month)) {
+    if (!indices.hasIndex(p.month)) {
       throw new Error("شاخص ماه یکی از پرداخت‌ها منتشر نشده است");
     }
     grouped.set(ord, (grouped.get(ord) ?? 0) + p.amount);
@@ -363,7 +311,7 @@ export function calculateDamages({
   const sortedOrds = [...grouped.keys()].sort((x, y) => x - y);
   for (const ord of sortedOrds) {
     const month = monthFromOrdinal(ord);
-    const indexPay = getIndex(month)!.level;
+    const indexPay = indices.getIndex(month)!.level;
     const ratio = indexPay / currentIndex;
     const balanceBefore = balance;
     const updatedBalance = balanceBefore * ratio;
@@ -408,7 +356,7 @@ export function calculateDamages({
       const nextOrd = curOrd + step;
       const fromM = monthFromOrdinal(curOrd);
       const toM = monthFromOrdinal(nextOrd);
-      const nextIndex = getIndex(toM)!.level;
+      const nextIndex = indices.getIndex(toM)!.level;
       const stepRatio = nextIndex / curIndex;
       const updatedTotal = debt * (nextIndex / a.level);
       segments.push({
@@ -480,6 +428,8 @@ export interface InsolvencyPlanInput {
   installmentAmount?: number;
   /** number of installments (mode === "count") */
   installmentCount?: number;
+  /** case-specific monthly levels (published series + user corrections) */
+  indices?: IndexSource;
 }
 
 export interface InsolvencyPlanResult {
@@ -528,6 +478,7 @@ export function calculateInsolvencyPlan({
   mode,
   installmentAmount = 0,
   installmentCount = 0,
+  indices = publishedIndexSource,
 }: InsolvencyPlanInput): InsolvencyPlanResult {
   if (!(debt > 0)) throw new Error("مبلغ دین باید بزرگ‌تر از صفر باشد");
 
@@ -537,12 +488,12 @@ export function calculateInsolvencyPlan({
     throw new Error("تاریخ رأی اعسار باید posterior از تاریخ شروع خسارت باشد");
   }
 
-  const a = getIndex(start);
-  const b = getIndex(ruling);
+  const a = indices.getIndex(start);
+  const b = indices.getIndex(ruling);
   if (!a || !b) throw new Error("شاخص برای یکی از ماه‌های انتخابی منتشر نشده است");
   // Every intermediate month must be published for the ratio to be exact.
   for (let o = startOrd; o <= rulingOrd; o++) {
-    if (!hasIndex(monthFromOrdinal(o))) {
+    if (!indices.hasIndex(monthFromOrdinal(o))) {
       throw new Error("شاخص برای یکی از ماه‌های میانی بازه منتشر نشده است");
     }
   }
@@ -657,18 +608,20 @@ export function installmentLateDamages({
   amount,
   due,
   paid,
+  indices = publishedIndexSource,
 }: {
   amount: number;
   due: JalaliMonth;
   paid: JalaliMonth;
+  indices?: IndexSource;
 }): number {
   if (!(amount > 0)) throw new Error("مبلغ قسط باید بزرگ‌تر از صفر باشد");
   if (monthOrdinal(paid) <= monthOrdinal(due)) return 0;
-  const a = getIndex(due);
+  const a = indices.getIndex(due);
   if (!a) {
     throw new Error(`شاخص ماه سررسید (${monthLabel(due)}) هنوز منتشر نشده است`);
   }
-  const b = getIndex(paid);
+  const b = indices.getIndex(paid);
   if (!b) {
     throw new Error(
       `شاخص ماه پرداخت (${monthLabel(paid)}) هنوز منتشر نشده است`
