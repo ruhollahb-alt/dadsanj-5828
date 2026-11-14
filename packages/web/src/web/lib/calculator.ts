@@ -1,4 +1,11 @@
 import { isValidJalaaliDate } from "jalaali-js";
+import {
+  calculateDamages,
+  calculateInsolvencyPlan,
+  removeIndexOverride,
+  setIndexOverride,
+  type JalaliMonth,
+} from "./cpi";
 
 export type Payment = { id: string; date: string; amount: string };
 export type IndexRow = { month: string; value: string };
@@ -49,88 +56,160 @@ function amount(s: string, name: string, allowZero = false): number {
   if (!Number.isSafeInteger(n)) throw Error(`${name} باید به ریالِ کامل وارد شود.`);
   return n;
 }
-function getIndex(rows: IndexRow[], date: string): number {
-  const key = date.slice(0, 7);
-  const candidates = rows.filter(row => { try { return parseMonth(row.month) === key; } catch { return false; } });
-  if (!candidates.length) throw Error(`شاخص ماه ${key} موجود نیست؛ آن را در صفحهٔ شاخص‌ها ثبت کنید.`);
-  if (candidates.length > 1) throw Error(`شاخص ماه ${key} تکراری است؛ ردیف‌های تکراری را حذف کنید.`);
-  return positive(candidates[0].value, `شاخص ماه ${key}`);
-}
 function dates(startInput: string, endInput: string) {
   const start = parseDate(startInput), end = parseDate(endInput);
   if (end < start) throw Error("تاریخ پایان نمی‌تواند پیش از تاریخ شروع باشد.");
   return { start, end };
 }
+/** The CBI index is monthly: a date maps to its Jalali year/month. */
+function monthOf(date: string): JalaliMonth {
+  const [year, month] = date.split("/").map(Number);
+  return { year, month };
+}
+
+/**
+ * The ported engine keeps its own month → level store. Feed it the rows the
+ * user sees (INI file / index manager) so both sides always agree.
+ */
+const applied = new Map<string, number>();
+function syncIndices(rows: IndexRow[]): void {
+  const next = new Map<string, number>();
+  for (const row of rows) {
+    let key: string;
+    try { key = parseMonth(row.month); } catch { continue; }
+    const value = Number(digits(row.value));
+    if (!Number.isFinite(value) || value <= 0) continue;
+    next.set(key, value);
+    if (applied.get(key) !== value) {
+      const [year, month] = key.split("/").map(Number);
+      setIndexOverride({ year, month }, value);
+    }
+  }
+  for (const key of applied.keys()) {
+    if (!next.has(key)) {
+      const [year, month] = key.split("/").map(Number);
+      removeIndexOverride({ year, month });
+    }
+  }
+  applied.clear();
+  for (const [key, value] of next) applied.set(key, value);
+}
+
 export function calculateStandard(d: AppData): Result {
   const principal = amount(d.standard.principal, "مبلغ اصل دین");
   const { start, end } = dates(d.standard.start, d.standard.end);
-  const startIndex = getIndex(d.indices, start), endIndex = getIndex(d.indices, end);
-  const updated = principal * endIndex / startIndex;
-  const damages = Math.max(0, Math.round(updated - principal));
-  return { principal, damages, total: principal + damages, startIndex, endIndex, stages: [
-    { label: "شروع محاسبه", date: start, index: startIndex, before: principal, payment: 0, after: principal },
-    { label: "تسویه در تاریخ پایان", date: end, index: endIndex, before: updated, payment: 0, after: principal + damages },
-  ] };
+  syncIndices(d.indices);
+  const r = calculateDamages({ debt: principal, from: monthOf(start), to: monthOf(end) });
+  const damages = Math.max(0, Math.round(r.damages));
+  return {
+    principal,
+    damages,
+    total: Math.round(r.total),
+    startIndex: r.indexFrom,
+    endIndex: r.indexTo,
+    stages: [
+      { label: "شروع محاسبه", date: start, index: r.indexFrom, before: principal, payment: 0, after: principal },
+      { label: "تسویه در تاریخ پایان", date: end, index: r.indexTo, before: Math.round(r.total), payment: 0, after: Math.round(r.total) },
+    ],
+  };
 }
+
 export function calculatePartial(d: AppData): Result {
   const principal = amount(d.partial.principal, "مبلغ اصل دین");
   const { start, end } = dates(d.partial.start, d.partial.end);
-  const startIndex = getIndex(d.indices, start), endIndex = getIndex(d.indices, end);
-  let prevIndex = startIndex, balance = principal, paid = 0;
-  const stages: Stage[] = [{ label: "مانده در تاریخ شروع", date: start, index: startIndex, before: principal, payment: 0, after: principal }];
+  const startMonth = monthOf(start), endMonth = monthOf(end);
+  const startOrdinal = startMonth.year * 12 + startMonth.month;
+  const endOrdinal = endMonth.year * 12 + endMonth.month;
+
   const payments = d.partial.payments.map((p, i) => {
     const date = parseDate(p.date), sum = amount(p.amount, `پرداخت ${i+1}`);
-    if (date < start || date > end) throw Error(`تاریخ پرداخت ${i+1} باید در بازهٔ محاسبه باشد.`);
+    const month = monthOf(date);
+    const ordinal = month.year * 12 + month.month;
+    if (ordinal < startOrdinal || ordinal > endOrdinal) throw Error(`تاریخ پرداخت ${i+1} باید در بازهٔ محاسبه باشد.`);
     if (sum >= principal) throw Error(`پرداخت ${i+1} باید کمتر از مبلغ اصل دین باشد.`);
-    return { date, sum, order: i };
-  }).sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
-  for (const [i, p] of payments.entries()) {
-    const index = getIndex(d.indices, p.date);
-    const before = balance * index / prevIndex;
-    if (p.sum > before + 1e-8) throw Error(`پرداخت ${i+1} از ماندهٔ محاسبه‌شده در آن مرحله بیشتر است.`);
-    balance = before - p.sum;
-    stages.push({ label: `پرداخت ${i+1}`, date: p.date, index, before, payment: p.sum, after: balance });
-    paid += p.sum;
-    prevIndex = index;
-  }
-  const finalBalance = balance * endIndex / prevIndex;
-  stages.push({ label: "مانده در پایان", date: end, index: endIndex, before: finalBalance, payment: 0, after: finalBalance });
-  const total = Math.round(finalBalance);
-  return { principal, damages: Math.max(0, Math.round(paid + finalBalance - principal)), total, paid, startIndex, endIndex, stages };
+    return { id: p.id, date, sum, month };
+  }).sort((a, b) => a.date.localeCompare(b.date));
+
+  syncIndices(d.indices);
+  const r = calculateDamages({
+    debt: principal,
+    from: startMonth,
+    to: endMonth,
+    payments: payments.map(p => ({ id: p.id, month: p.month, amount: p.sum })),
+  });
+
+  const dateByOrdinal = new Map(payments.map(p => [p.month.year * 12 + p.month.month, p.date]));
+  const stages: Stage[] = [
+    { label: "مانده در تاریخ شروع", date: start, index: r.indexFrom, before: principal, payment: 0, after: principal },
+  ];
+  r.paymentStages.forEach((s, i) => {
+    stages.push({
+      label: `پرداخت ${i + 1}`,
+      date: dateByOrdinal.get(s.month.year * 12 + s.month.month) ?? start,
+      index: s.indexPay,
+      before: s.balanceBefore,
+      payment: s.paid,
+      after: s.balanceAfter,
+    });
+  });
+  stages.push({ label: "مانده در پایان", date: end, index: r.indexTo, before: Math.round(r.total), payment: 0, after: Math.round(r.total) });
+
+  return {
+    principal,
+    damages: Math.max(0, Math.round(r.damages)),
+    total: Math.round(r.total),
+    startIndex: r.indexFrom,
+    endIndex: r.indexTo,
+    stages,
+    paid: r.totalPaid,
+  };
 }
+
 export function calculateInstallment(d: AppData): Result {
   const v = d.installment;
   const principal = amount(v.principal, "مبلغ محکوم‌به");
   const { start, end } = dates(v.start, v.ruling);
   const initial = amount(v.initial || "0", "پیش‌پرداخت", true);
   if (initial > principal) throw Error("پیش‌پرداخت نمی‌تواند بیش از اصل محکوم‌به باشد.");
-  const startIndex = getIndex(d.indices, start), endIndex = getIndex(d.indices, end);
-  const damages = Math.max(0, Math.round(principal * (endIndex / startIndex - 1)));
-  const remaining = principal - initial;
-  let count: number;
-  let fixed = 0;
-  if (v.mode === "count") {
-    count = amount(v.value, "تعداد اقساط");
-    if (count > 600) throw Error("حداکثر تعداد اقساط ۶۰۰ است.");
-  } else {
-    fixed = amount(v.value, "مبلغ ثابت هر قسط");
-    count = Math.max(1, Math.ceil(remaining / fixed));
-    if (count > 600) throw Error("تعداد اقساط از ۶۰۰ بیشتر می‌شود؛ مبلغ هر قسط را افزایش دهید.");
-  }
-  if (!remaining && !damages) count = 0;
-  const plan: PlanRow[] = [];
-  let allocatedPrincipal = 0, allocatedDamage = 0;
-  if (initial) plan.push({ number: 0, principal: initial, damages: 0, total: initial });
-  for (let i = 1; i <= count; i++) {
-    const part = remaining === 0 ? 0 : v.mode === "count" ? Math.floor(remaining / count) + (i <= remaining % count ? 1 : 0) : Math.min(fixed, remaining - allocatedPrincipal);
-    const damagePart = Math.floor(damages / count) + (i <= damages % count ? 1 : 0);
-    allocatedPrincipal += part;
-    allocatedDamage += damagePart;
-    plan.push({ number: i, principal: part, damages: damagePart, total: part + damagePart });
-  }
-  return { principal, damages, total: principal + damages, paid: initial, startIndex, endIndex,
+
+  syncIndices(d.indices);
+  const plan = calculateInsolvencyPlan({
+    debt: principal,
+    start: monthOf(start),
+    ruling: monthOf(end),
+    cashPayment: initial,
+    cashPaymentDateType: "ruling",
+    mode: v.mode,
+    installmentAmount: v.mode === "amount" ? amount(v.value, "مبلغ ثابت هر قسط") : 0,
+    installmentCount: v.mode === "count" ? amount(v.value, "تعداد اقساط") : 0,
+  });
+
+  // Split every installment into its principal/damages share (as the report shows).
+  const rows: PlanRow[] = [];
+  if (plan.cashPayment > 0) rows.push({ number: 0, principal: plan.cashPayment, damages: 0, total: plan.cashPayment });
+  let remainingPrincipal = Math.round(principal - plan.cashPayment);
+  let remainingDamages = Math.round(plan.damages);
+  plan.installments.forEach((inst, i) => {
+    const last = i === plan.installments.length - 1;
+    const principalShare = last ? remainingPrincipal : Math.min(remainingPrincipal, Math.round((inst.amount * (principal - plan.cashPayment)) / plan.remainder));
+    const damagesShare = last ? remainingDamages : inst.amount - principalShare;
+    remainingPrincipal -= principalShare;
+    remainingDamages -= damagesShare;
+    rows.push({ number: inst.n, principal: principalShare, damages: damagesShare, total: inst.amount });
+  });
+
+  const damages = Math.max(0, Math.round(plan.damages));
+  return {
+    principal,
+    damages,
+    total: Math.round(plan.total),
+    startIndex: plan.indexStart,
+    endIndex: plan.indexRuling,
     stages: [
-      { label: "شروع دورهٔ خسارت", date: start, index: startIndex, before: principal, payment: 0, after: principal },
-      { label: "صدور حکم اعسار / پایان دوره", date: end, index: endIndex, before: principal + damages, payment: initial, after: principal + damages - initial },
-    ], plan };
+      { label: "شروع دورهٔ خسارت", date: start, index: plan.indexStart, before: principal, payment: 0, after: principal },
+      { label: "صدور حکم اعسار / پایان دوره", date: end, index: plan.indexRuling, before: Math.round(plan.total), payment: plan.cashPayment, after: Math.round(plan.total) - plan.cashPayment },
+    ],
+    plan: rows,
+    paid: plan.cashPayment,
+  };
 }
